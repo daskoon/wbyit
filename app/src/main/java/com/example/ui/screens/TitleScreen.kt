@@ -65,6 +65,7 @@ fun TitleScreen(
     onStartClick: () -> Unit,
     onBreakroomClick: () -> Unit,
     onCodexClick: () -> Unit,
+    onWatchIntroClick: () -> Unit,
     onToggleSound: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -372,6 +373,25 @@ fun TitleScreen(
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
+                    )
+                }
+
+                // WATCH CINEMATIC INTRO BUTTON
+                Button(
+                    onClick = onWatchIntroClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("watch_intro_button"),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, RetailYellow.copy(alpha = 0.6f))
+                ) {
+                    Text(
+                        text = "🎬 REPLAY CINEMATIC INTRO",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = RetailYellow
                     )
                 }
             }

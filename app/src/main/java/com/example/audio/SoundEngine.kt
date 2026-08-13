@@ -104,6 +104,117 @@ class SoundEngine {
         }
     }
 
+    private var activeIntroTrack: AudioTrack? = null
+
+    fun stopIntroMusic() {
+        try {
+            activeIntroTrack?.stop()
+            activeIntroTrack?.release()
+            activeIntroTrack = null
+        } catch (_: Exception) {}
+    }
+
+    fun playStarWarsFanfare() {
+        if (!isEnabled) return
+        stopIntroMusic()
+        scope.launch {
+            val sampleRate = 22050
+            // Star Wars Main Theme synthesized in key of Bb / Eb
+            // Frequencies:
+            // Bb3: 233.08, Eb4: 311.13, G4: 392.00, Bb4: 466.16, Ab4: 415.30, F4: 349.23, Eb5: 622.25, D5: 587.33, C5: 523.25
+            data class Note(val freq: Double, val durMs: Int, val harmony: Double = 0.0)
+
+            val notes = listOf(
+                // Opening fanfare fanfare strike
+                Note(233.08, 140, 116.54), // Bb3 triplet 1
+                Note(233.08, 140, 116.54), // Bb3 triplet 2
+                Note(233.08, 140, 116.54), // Bb3 triplet 3
+                Note(311.13, 850, 155.56), // Eb4 (LONG HIT!)
+                Note(466.16, 850, 233.08), // Bb4 (LONG HIT!)
+                // Melody phrase 1
+                Note(415.30, 160, 207.65), // Ab4
+                Note(392.00, 160, 196.00), // G4
+                Note(349.23, 160, 174.61), // F4
+                Note(622.25, 800, 311.13), // Eb5 (HIGH HIT!)
+                Note(466.16, 450, 233.08), // Bb4
+                // Melody phrase 2
+                Note(415.30, 160, 207.65), // Ab4
+                Note(392.00, 160, 196.00), // G4
+                Note(349.23, 160, 174.61), // F4
+                Note(622.25, 800, 311.13), // Eb5
+                Note(466.16, 450, 233.08), // Bb4
+                // Phrase 3
+                Note(415.30, 200, 207.65), // Ab4
+                Note(392.00, 200, 196.00), // G4
+                Note(415.30, 200, 207.65), // Ab4
+                Note(349.23, 900, 174.61), // F4 (resolving brass)
+                // Bridge chords
+                Note(233.08, 250, 116.54),
+                Note(261.63, 250, 130.81),
+                Note(293.66, 250, 146.83),
+                Note(311.13, 600, 155.56),
+                Note(349.23, 600, 174.61),
+                Note(392.00, 1200, 196.00),
+                Note(466.16, 1600, 233.08)
+            )
+
+            val totalSamples = notes.sumOf { (it.durMs * sampleRate) / 1000 }
+            val buffer = ShortArray(totalSamples)
+            var offset = 0
+
+            for (note in notes) {
+                val count = (note.durMs * sampleRate) / 1000
+                for (i in 0 until count) {
+                    val t = i.toDouble() / sampleRate
+                    // Brass wave with 3 harmonics
+                    val base = sin(2.0 * PI * note.freq * t)
+                    val h2 = 0.5 * sin(2.0 * PI * (note.freq * 2) * t)
+                    val h3 = 0.25 * sin(2.0 * PI * (note.freq * 3) * t)
+                    val harm = if (note.harmony > 0) 0.4 * sin(2.0 * PI * note.harmony * t) else 0.0
+                    val combined = (base + h2 + h3 + harm) / 2.15
+
+                    // Envelope: fast attack, slight sustain, decay
+                    val attack = (i.toFloat() / (sampleRate * 0.02f)).coerceIn(0f, 1f)
+                    val decay = (1.0 - (i.toDouble() / count).coerceIn(0.0, 1.0)).toFloat().coerceIn(0.05f, 1f)
+                    val env = attack * decay
+
+                    val sampleVal = (combined * Short.MAX_VALUE * 0.55f * env).toInt()
+                    buffer[offset + i] = sampleVal.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+                }
+                offset += count
+            }
+
+            try {
+                val minBuf = AudioTrack.getMinBufferSize(
+                    sampleRate,
+                    AudioFormat.CHANNEL_OUT_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT
+                )
+                val track = AudioTrack.Builder()
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_GAME)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .build()
+                    )
+                    .setAudioFormat(
+                        AudioFormat.Builder()
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setSampleRate(sampleRate)
+                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                            .build()
+                    )
+                    .setBufferSizeInBytes(buffer.size * 2.coerceAtLeast(minBuf))
+                    .setTransferMode(AudioTrack.MODE_STATIC)
+                    .build()
+
+                activeIntroTrack = track
+                track.write(buffer, 0, buffer.size)
+                track.play()
+            } catch (_: Exception) {}
+        }
+    }
+
     private data class Tone(val freqHz: Double, val durationMs: Int, val volume: Float = 0.5f)
 
     private fun playTones(tones: List<Tone>) {

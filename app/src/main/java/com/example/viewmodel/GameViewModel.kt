@@ -30,6 +30,7 @@ import java.util.UUID
 import kotlin.random.Random
 
 sealed interface GameScreen {
+    data object Intro : GameScreen
     data object Title : GameScreen
     data object ShiftSelect : GameScreen
     data class Gameplay(val shiftNumber: Int) : GameScreen
@@ -88,7 +89,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         initialValue = GameProgressEntity()
     )
 
-    private val _currentScreen = MutableStateFlow<GameScreen>(GameScreen.Title)
+    private val _currentScreen = MutableStateFlow<GameScreen>(GameScreen.Intro)
     val currentScreen: StateFlow<GameScreen> = _currentScreen.asStateFlow()
 
     private val _gameplayState = MutableStateFlow(GameplayUiState())

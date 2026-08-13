@@ -17,6 +17,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.screens.BreakroomScreen
 import com.example.ui.screens.CustomerCodexScreen
 import com.example.ui.screens.GameplayScreen
+import com.example.ui.screens.IntroScreen
 import com.example.ui.screens.ShiftSelectScreen
 import com.example.ui.screens.ShiftSummaryScreen
 import com.example.ui.screens.TitleScreen
@@ -53,8 +54,9 @@ fun WhatBringsYouInApp(viewModel: GameViewModel) {
     val progress by viewModel.gameProgress.collectAsStateWithLifecycle()
     val gameplayState by viewModel.gameplayState.collectAsStateWithLifecycle()
 
-    BackHandler(enabled = currentScreen !is GameScreen.Title) {
+    BackHandler(enabled = currentScreen !is GameScreen.Title && currentScreen !is GameScreen.Intro) {
         when (currentScreen) {
+            GameScreen.Intro -> viewModel.navigateTo(GameScreen.Title)
             is GameScreen.Gameplay -> viewModel.navigateTo(GameScreen.ShiftSelect)
             is GameScreen.ShiftSummary -> viewModel.navigateTo(GameScreen.ShiftSelect)
             is GameScreen.ShiftSelect -> viewModel.navigateTo(GameScreen.Title)
@@ -65,12 +67,19 @@ fun WhatBringsYouInApp(viewModel: GameViewModel) {
     }
 
     when (val screen = currentScreen) {
+        GameScreen.Intro -> {
+            IntroScreen(
+                soundEngine = viewModel.soundEngine,
+                onFinishIntro = { viewModel.navigateTo(GameScreen.Title) }
+            )
+        }
         GameScreen.Title -> {
             TitleScreen(
                 progress = progress,
                 onStartClick = { viewModel.navigateTo(GameScreen.ShiftSelect) },
                 onBreakroomClick = { viewModel.navigateTo(GameScreen.BreakroomUpgrades) },
                 onCodexClick = { viewModel.navigateTo(GameScreen.CustomerCodex) },
+                onWatchIntroClick = { viewModel.navigateTo(GameScreen.Intro) },
                 onToggleSound = { viewModel.toggleSound(it) }
             )
         }

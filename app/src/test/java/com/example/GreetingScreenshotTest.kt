@@ -1,10 +1,12 @@
 package com.example
 
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onRoot
-import com.example.ui.theme.MyApplicationTheme
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.assertIsDisplayed
+import com.example.audio.SoundEngine
+import com.example.ui.screens.IntroScreen
+import com.example.ui.theme.WhatBringsYouInTheme
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
-import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -20,9 +22,17 @@ class GreetingScreenshotTest {
   @get:Rule val composeTestRule = createComposeRule()
 
   @Test
-  fun greeting_screenshot() {
-    composeTestRule.setContent { MyApplicationTheme { Greeting("Robolectric") } }
+  fun introScreen_isDisplayed() {
+    val soundEngine = SoundEngine().apply { isEnabled = false }
+    composeTestRule.setContent {
+      WhatBringsYouInTheme(darkTheme = true) {
+        IntroScreen(
+          soundEngine = soundEngine,
+          onFinishIntro = {}
+        )
+      }
+    }
 
-    composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/greeting.png")
+    composeTestRule.onNodeWithTag("intro_screen_container").assertIsDisplayed()
   }
 }
