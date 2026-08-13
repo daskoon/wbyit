@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Big Yellow Retail Tag / Host Badge -->
+    <path
+        android:fillColor="#FFE600"
+        android:pathData="M28,32 L80,32 L84,54 L80,76 L28,76 L24,54 Z" />
+    <!-- Blue Trim Border -->
+    <path
+        android:strokeColor="#002244"
+        android:strokeWidth="3"
+        android:pathData="M28,32 L80,32 L84,54 L80,76 L28,76 L24,54 Z" />
+    <!-- Walkie Talkie Antenna -->
+    <path
+        android:strokeColor="#002244"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:pathData="M42,32 L42,20" />
+    <!-- Question Mark / Speech bubble mark -->
+    <path
+        android:fillColor="#002244"
+        android:pathData="M54,42 C51,42 49,44 49,47 L53,47 C53,45.5 54,45 55,45 C56.2,45 57,45.8 57,46.8 C57,48.2 55.5,49 54.5,50.2 C53.8,51 53.5,52 53.5,54 L56.5,54 C56.5,52.8 57,52.2 57.8,51.2 C59,49.8 60,48.5 60,46.8 C60,44 57.5,42 54,42 Z M53.5,57 L56.5,57 L56.5,60 L53.5,60 Z" />
+    <!-- Host Desk counter bar -->
+    <path
+        android:fillColor="#001F3F"
+        android:pathData="M22,74 L86,74 L86,84 L22,84 Z" />
+    <!-- Front desk status light -->
+    <path
+        android:fillColor="#00FF66"
+        android:pathData="M30,78 L36,78 L36,80 L30,80 Z" />
+    <path
+        android:fillColor="#00D4FF"
+        android:pathData="M40,78 L46,78 L46,80 L40,80 Z" />
+</vector>
+

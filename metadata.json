@@ -1,0 +1,7 @@
+{
+  "name": "What Brings You In Today?",
+  "description": "Humorous retail customer service and host desk simulation game. Route shoppers, handle escalations, call floor staff on the radio, and survive crazy store shifts!",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
