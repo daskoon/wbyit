@@ -81,7 +81,7 @@ data class GameplayUiState(
 class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = GameRepository(AppDatabase.getInstance(application).gameDao())
-    val soundEngine = SoundEngine()
+    val soundEngine = SoundEngine(application.applicationContext)
 
     val gameProgress: StateFlow<GameProgressEntity> = repository.gameProgress.stateIn(
         scope = viewModelScope,

@@ -1,18 +1,15 @@
 package com.example.ui.screens
 
+import android.net.Uri
+import android.widget.MediaController
+import android.widget.VideoView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -27,10 +24,13 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.VolumeMute
 import androidx.compose.material.icons.filled.VolumeUp
@@ -53,13 +53,11 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -68,19 +66,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import com.example.R
 import com.example.audio.SoundEngine
 import kotlinx.coroutines.delay
-import kotlin.math.cos
-import kotlin.math.sin
 import kotlin.random.Random
-
-enum class IntroPhase {
-    PROLOGUE,    // "A long time ago, in a retail galaxy not so far away..."
-    TITLE_ZOOM,  // "BEST BUY" logo receding into starfield with fanfare
-    TEXT_CRAWL,  // 3D perspective yellow crawl
-    DEATH_STAR,  // Pan down to Death Star in space
-    FINISHED
-}
 
 @Composable
 fun IntroScreen(
@@ -88,30 +78,38 @@ fun IntroScreen(
     onFinishIntro: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var phase by remember { mutableStateOf(IntroPhase.PROLOGUE) }
+    val context = LocalContext.current
     var soundEnabled by remember { mutableStateOf(soundEngine.isEnabled) }
     var crawlSpeedMultiplier by remember { mutableFloatStateOf(1.0f) }
 
-    // Start fanfare and progress phases
+    // Sequence controller
+    // 0: Prologue (0 - 4.5s)
+    // 1: Logo Zoom + Fanfare (4.5s - 10.5s)
+    // 2: Full Crawl (10.5s - 52s)
+    // 3: Death Star Reveal (52s - 58s)
+    // 4: Complete
+    var stage by remember { mutableStateOf(0) }
+
+    // Start fanfare on stage 1
+    LaunchedEffect(stage) {
+        if (stage == 1 && soundEnabled) {
+            soundEngine.playStarWarsFanfare()
+        }
+    }
+
     LaunchedEffect(Unit) {
-        // Phase 1: Prologue text (0s to 5.5s)
-        delay(5500L)
-        
-        // Phase 2: Title Zoom & Star Wars Fanfare
-        phase = IntroPhase.TITLE_ZOOM
-        soundEngine.playStarWarsFanfare()
-        delay(7000L)
-
-        // Phase 3: Text Crawl
-        phase = IntroPhase.TEXT_CRAWL
-        delay(42000L)
-
-        // Phase 4: Death Star Reveal Pan
-        phase = IntroPhase.DEATH_STAR
-        delay(7000L)
-
-        // Phase 5: Transition to Main Game
-        phase = IntroPhase.FINISHED
+        // Stage 0: Prologue text
+        delay(4500L)
+        stage = 1 // Logo zoom
+        delay(6000L)
+        stage = 2 // Crawl begins
+        // Crawl runs until it reaches completion or skip
+        val baseCrawlDuration = 44000L
+        delay(baseCrawlDuration)
+        stage = 3 // Death star pan
+        delay(6000L)
+        stage = 4
+        soundEngine.stopIntroMusic()
         onFinishIntro()
     }
 
@@ -129,23 +127,23 @@ fun IntroScreen(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
-                // Tap to accelerate crawl or advance
-                if (phase == IntroPhase.TEXT_CRAWL) {
-                    crawlSpeedMultiplier = if (crawlSpeedMultiplier == 1.0f) 2.5f else 1.0f
+                // Tap anywhere during crawl to toggle fast-forward
+                if (stage == 2) {
+                    crawlSpeedMultiplier = if (crawlSpeedMultiplier == 1.0f) 2.2f else 1.0f
                 }
             }
             .testTag("intro_screen_container")
     ) {
-        // Starfield Canvas Background (visible during Title, Crawl, Death Star)
-        if (phase != IntroPhase.PROLOGUE) {
+        // Continuous Starfield background
+        if (stage >= 1) {
             StarfieldCanvas()
         }
 
-        // 1. PROLOGUE PHASE
+        // STAGE 0: PROLOGUE TEXT
         AnimatedVisibility(
-            visible = phase == IntroPhase.PROLOGUE,
-            enter = fadeIn(tween(1200)),
-            exit = fadeOut(tween(1200)),
+            visible = stage == 0,
+            enter = fadeIn(tween(1000)),
+            exit = fadeOut(tween(1000)),
             modifier = Modifier.align(Alignment.Center)
         ) {
             Text(
@@ -162,50 +160,53 @@ fun IntroScreen(
             )
         }
 
-        // 2. LOGO ZOOM PHASE ("BEST BUY")
-        if (phase == IntroPhase.TITLE_ZOOM) {
-            TitleLogoZoomSection()
+        // STAGE 1: BEST BUY LOGO ZOOM-OUT INTO DEEP SPACE
+        if (stage == 1) {
+            BestBuyLogoZoom()
         }
 
-        // 3. 3D TEXT CRAWL PHASE
-        if (phase == IntroPhase.TEXT_CRAWL) {
-            Crawl3DSection(speedMultiplier = crawlSpeedMultiplier)
+        // STAGE 2: 3D PERSPECTIVE CRAWL WITH NO TRUNCATION
+        if (stage == 2) {
+            FullStarWarsCrawl(
+                speedMultiplier = crawlSpeedMultiplier,
+                onCrawlFinished = {
+                    stage = 3
+                }
+            )
         }
 
-        // 4. DEATH STAR / SPACE PAN PHASE
-        if (phase == IntroPhase.DEATH_STAR) {
-            DeathStarPanSection()
+        // STAGE 3: DEATH STAR SUPERSTORE PAN & REVEAL
+        if (stage == 3) {
+            DeathStarReveal()
         }
 
-        // TOP CONTROLS (Skip Intro & Sound Toggle & Speed Indicator)
+        // TOP HUD BAR: Speed multiplier pill + Sound toggle + SKIP INTRO button
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 16.dp, start = 16.dp, end = 16.dp)
+                .padding(top = 18.dp, start = 16.dp, end = 16.dp)
                 .align(Alignment.TopCenter),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Speed indicator if fast forwarding
-            if (crawlSpeedMultiplier > 1f && phase == IntroPhase.TEXT_CRAWL) {
+            if (stage == 2 && crawlSpeedMultiplier > 1.0f) {
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xFF0F172A).copy(alpha = 0.8f))
-                        .border(1.dp, Color(0xFFFFE600), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF0F172A).copy(alpha = 0.85f))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Filled.FastForward,
                             contentDescription = null,
                             tint = Color(0xFFFFE600),
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "2.5x SPEED (Tap to normal)",
-                            fontSize = 10.sp,
+                            text = "2.2X (Tap screen to reset)",
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFFFFE600)
                         )
@@ -215,55 +216,59 @@ fun IntroScreen(
                 Spacer(modifier = Modifier.width(1.dp))
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Sound Toggle
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Sound Mute/Unmute
                 IconButton(
                     onClick = {
                         soundEnabled = !soundEnabled
                         soundEngine.isEnabled = soundEnabled
                         if (!soundEnabled) {
                             soundEngine.stopIntroMusic()
-                        } else if (phase == IntroPhase.TITLE_ZOOM || phase == IntroPhase.TEXT_CRAWL) {
+                        } else if (stage >= 1) {
                             soundEngine.playStarWarsFanfare()
                         }
                     },
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(38.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF1E293B).copy(alpha = 0.7f))
+                        .background(Color(0xFF1E293B).copy(alpha = 0.8f))
                         .testTag("intro_sound_toggle")
                 ) {
                     Icon(
                         imageVector = if (soundEnabled) Icons.Filled.VolumeUp else Icons.Filled.VolumeMute,
-                        contentDescription = "Toggle Sound",
+                        contentDescription = "Toggle Audio",
                         tint = if (soundEnabled) Color(0xFFFFE600) else Color(0xFF94A3B8),
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
-                // SKIP INTRO BUTTON
+                // SKIP INTRO BUTTON (Always functional and accessible)
                 Button(
                     onClick = {
                         soundEngine.stopIntroMusic()
                         onFinishIntro()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFE600)),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                     modifier = Modifier.testTag("skip_intro_button")
                 ) {
                     Icon(
                         imageVector = Icons.Filled.SkipNext,
                         contentDescription = null,
                         tint = Color(0xFF0F172A),
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "SKIP INTRO",
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Black,
-                        color = Color(0xFF0F172A)
+                        color = Color(0xFF0F172A),
+                        letterSpacing = 0.5.sp
                     )
                 }
             }
@@ -272,23 +277,22 @@ fun IntroScreen(
 }
 
 @Composable
-private fun TitleLogoZoomSection() {
-    val scaleAnim = remember { Animatable(1.4f) }
-    val alphaAnim = remember { Animatable(1.0f) }
+private fun BestBuyLogoZoom() {
+    val scale = remember { Animatable(1.5f) }
+    val alpha = remember { Animatable(1.0f) }
 
     LaunchedEffect(Unit) {
-        // Zoom from 1.4 down to 0.05 while receding into deep space
-        scaleAnim.animateTo(
-            targetValue = 0.05f,
-            animationSpec = tween(durationMillis = 6500, easing = LinearEasing)
+        scale.animateTo(
+            targetValue = 0.04f,
+            animationSpec = tween(durationMillis = 5800, easing = LinearEasing)
         )
     }
 
     LaunchedEffect(Unit) {
-        delay(4500L)
-        alphaAnim.animateTo(
+        delay(4000L)
+        alpha.animateTo(
             targetValue = 0.0f,
-            animationSpec = tween(durationMillis = 2000, easing = LinearEasing)
+            animationSpec = tween(durationMillis = 1800, easing = LinearEasing)
         )
     }
 
@@ -299,45 +303,54 @@ private fun TitleLogoZoomSection() {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
-                .scale(scaleAnim.value)
-                .alpha(alphaAnim.value)
+                .scale(scale.value)
+                .alpha(alpha.value)
                 .testTag("intro_best_buy_logo")
         ) {
-            // BEST BUY Star Wars styled yellow outline title
             Text(
                 text = "BEST",
-                fontSize = 82.sp,
+                fontSize = 88.sp,
                 fontWeight = FontWeight.Black,
                 color = Color(0xFFFFE600),
                 fontFamily = FontFamily.SansSerif,
                 letterSpacing = 4.sp,
-                lineHeight = 78.sp
+                lineHeight = 84.sp
             )
             Text(
                 text = "BUY",
-                fontSize = 82.sp,
+                fontSize = 88.sp,
                 fontWeight = FontWeight.Black,
                 color = Color(0xFFFFE600),
                 fontFamily = FontFamily.SansSerif,
                 letterSpacing = 4.sp,
-                lineHeight = 78.sp
+                lineHeight = 84.sp
             )
         }
     }
 }
 
 @Composable
-private fun Crawl3DSection(speedMultiplier: Float) {
-    val crawlOffset = remember { Animatable(900f) }
+private fun FullStarWarsCrawl(
+    speedMultiplier: Float,
+    onCrawlFinished: () -> Unit
+) {
+    // Starting offset well below the screen (850f) and moves all the way past the top (-2400f)
+    // ensuring EVERY paragraph, line, and the final climactic sentence finishes cleanly
+    val startY = 850f
+    val endY = -2400f
+    val crawlOffset = remember { Animatable(startY) }
 
     LaunchedEffect(speedMultiplier) {
-        val remainingDistance = crawlOffset.value - (-1400f)
-        if (remainingDistance > 0) {
-            val duration = ((remainingDistance / 50f) * 1000 / speedMultiplier).toInt()
+        val remaining = crawlOffset.value - endY
+        if (remaining > 0) {
+            val totalDistance = startY - endY // 3250f
+            val baseTimeMs = 42000L
+            val targetDuration = ((remaining / totalDistance) * baseTimeMs / speedMultiplier).toLong()
             crawlOffset.animateTo(
-                targetValue = -1400f,
-                animationSpec = tween(durationMillis = duration.coerceAtLeast(100), easing = LinearEasing)
+                targetValue = endY,
+                animationSpec = tween(durationMillis = targetDuration.coerceAtLeast(100).toInt(), easing = LinearEasing)
             )
+            onCrawlFinished()
         }
     }
 
@@ -345,9 +358,9 @@ private fun Crawl3DSection(speedMultiplier: Float) {
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
-                // 3D Perspective Rotation for Star Wars crawling text
-                rotationX = 58f
-                cameraDistance = 9.0f * density
+                // Classic Star Wars Crawl 3D Perspective
+                rotationX = 56f
+                cameraDistance = 8.5f * density
             }
             .testTag("intro_crawl_container")
     ) {
@@ -355,10 +368,10 @@ private fun Crawl3DSection(speedMultiplier: Float) {
             modifier = Modifier
                 .fillMaxWidth()
                 .offset { IntOffset(0, crawlOffset.value.toInt()) }
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Episode I Header
+            // Header
             Text(
                 text = "Episode I",
                 fontSize = 24.sp,
@@ -368,68 +381,78 @@ private fun Crawl3DSection(speedMultiplier: Float) {
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Text(
                 text = "THE ETERNAL QUESTION",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Black,
                 color = Color(0xFFFFE600),
-                letterSpacing = 3.sp,
+                letterSpacing = 2.sp,
                 fontFamily = FontFamily.SansSerif,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
-            // Crawl Paragraphs
+            // Paragraph 1
             CrawlParagraph("It is a time of great uncertainty.")
 
+            // Paragraph 2
             CrawlParagraph("The doors slide open, the scanners beep, and weary CUSTOMERS pour into the blue-and-yellow stronghold.")
 
+            // Paragraph 3
             CrawlParagraph("Armed with vague intentions, broken electronics, and screenshots from the internet, they seek guidance... and validation.")
 
+            // Paragraph 4
             CrawlParagraph("Standing between chaos and clarity is a lone BEST BUY HOST, tasked with asking the question that echoes through the aisles and beyond:")
 
+            // Quote
             Text(
                 text = "“What brings you in today?”",
-                fontSize = 22.sp,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.Black,
                 color = Color(0xFFFFE600),
                 fontStyle = FontStyle.Italic,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(vertical = 12.dp)
+                modifier = Modifier.padding(vertical = 16.dp)
             )
 
+            // Paragraph 5
             CrawlParagraph("Some will answer honestly.")
 
+            // Paragraph 6
             CrawlParagraph("Some will lie.")
 
+            // Paragraph 7
             CrawlParagraph("Some will say “Just looking” and mean everything and nothing.")
 
+            // Paragraph 8
             CrawlParagraph("As the line grows longer and patience grows shorter, one truth remains...")
 
+            // Paragraph 9 - Final Punchline
             Text(
                 text = "The fate of the transaction rests on your greeting.",
-                fontSize = 22.sp,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.Black,
                 color = Color(0xFFFFE600),
                 fontStyle = FontStyle.Italic,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 16.dp, bottom = 40.dp)
+                lineHeight = 32.sp,
+                modifier = Modifier.padding(top = 20.dp, bottom = 120.dp)
             )
         }
 
-        // Top Gradient Vignette so text fades into deep space at the horizon
+        // Top subtle horizon fade
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(180.dp)
+                .height(130.dp)
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
                             Color.Black,
-                            Color.Black.copy(alpha = 0.85f),
+                            Color.Black.copy(alpha = 0.8f),
                             Color.Transparent
                         )
                     )
@@ -442,25 +465,25 @@ private fun Crawl3DSection(speedMultiplier: Float) {
 private fun CrawlParagraph(text: String) {
     Text(
         text = text,
-        fontSize = 20.sp,
+        fontSize = 21.sp,
         fontWeight = FontWeight.Bold,
         color = Color(0xFFFFE600),
         textAlign = TextAlign.Justify,
-        lineHeight = 28.sp,
+        lineHeight = 30.sp,
         modifier = Modifier
-            .fillMaxWidth(0.92f)
-            .padding(vertical = 10.dp)
+            .fillMaxWidth(0.94f)
+            .padding(vertical = 12.dp)
     )
 }
 
 @Composable
-private fun DeathStarPanSection() {
-    val panAnim = remember { Animatable(300f) }
+private fun DeathStarReveal() {
+    val panY = remember { Animatable(320f) }
 
     LaunchedEffect(Unit) {
-        panAnim.animateTo(
+        panY.animateTo(
             targetValue = 0f,
-            animationSpec = tween(durationMillis = 6000, easing = LinearEasing)
+            animationSpec = tween(durationMillis = 5500, easing = LinearEasing)
         )
     }
 
@@ -469,16 +492,16 @@ private fun DeathStarPanSection() {
             .fillMaxSize()
             .testTag("intro_death_star_pan")
     ) {
-        Canvas(
+        androidx.compose.foundation.Canvas(
             modifier = Modifier
-                .size(280.dp)
+                .size(300.dp)
                 .align(Alignment.BottomEnd)
-                .offset { IntOffset(80, (panAnim.value).toInt()) }
+                .offset { IntOffset(90, panY.value.toInt()) }
         ) {
             val center = Offset(size.width * 0.7f, size.height * 0.7f)
             val radius = size.width * 0.5f
 
-            // Shadowed Space Sphere (Death Star / Superstore Station)
+            // Superstore Death Star Base
             drawCircle(
                 color = Color(0xFF1E293B),
                 radius = radius,
@@ -493,7 +516,7 @@ private fun DeathStarPanSection() {
                 style = Stroke(width = 3f)
             )
 
-            // Superlaser / Radar Dish Concave Lens
+            // Superlaser / High-Gain Dish
             val dishCenter = Offset(center.x - radius * 0.35f, center.y - radius * 0.35f)
             drawCircle(
                 color = Color(0xFF0F172A),
@@ -512,15 +535,15 @@ private fun DeathStarPanSection() {
                 center = dishCenter
             )
 
-            // Equatorial Trench Line
+            // Trench Line
             drawLine(
                 color = Color(0xFF0F172A),
                 start = Offset(center.x - radius, center.y),
                 end = Offset(center.x + radius, center.y),
-                strokeWidth = 5f
+                strokeWidth = 6f
             )
 
-            // Surface panel lines
+            // Panel lattice
             drawLine(
                 color = Color(0xFF334155),
                 start = Offset(center.x - radius * 0.8f, center.y + radius * 0.4f),
@@ -529,7 +552,6 @@ private fun DeathStarPanSection() {
             )
         }
 
-        // Subtitle prompt to enter store
         Box(
             modifier = Modifier
                 .align(Alignment.Center)
@@ -537,10 +559,10 @@ private fun DeathStarPanSection() {
         ) {
             Text(
                 text = "PREPARE TO CLOCK IN...",
-                fontSize = 18.sp,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Black,
                 color = Color(0xFFFFE600),
-                letterSpacing = 2.sp,
+                letterSpacing = 2.5.sp,
                 fontFamily = FontFamily.Monospace,
                 textAlign = TextAlign.Center
             )
@@ -551,35 +573,22 @@ private fun DeathStarPanSection() {
 @Composable
 private fun StarfieldCanvas() {
     val stars = remember {
-        List(140) {
+        List(150) {
             StarPoint(
                 xNorm = Random.nextFloat(),
                 yNorm = Random.nextFloat(),
-                sizeDp = Random.nextFloat() * 2.5f + 1f,
-                baseAlpha = Random.nextFloat() * 0.6f + 0.4f,
-                twinkleSpeed = Random.nextInt(800, 2400)
+                sizeDp = Random.nextFloat() * 2.2f + 1f,
+                baseAlpha = Random.nextFloat() * 0.6f + 0.4f
             )
         }
     }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "stars_twinkle")
-    val pulse by infiniteTransition.animateFloat(
-        initialValue = 0.5f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "star_pulse"
-    )
-
-    Canvas(modifier = Modifier.fillMaxSize()) {
+    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
         for (star in stars) {
             val x = star.xNorm * size.width
             val y = star.yNorm * size.height
-            val alpha = (star.baseAlpha * pulse).coerceIn(0.2f, 1.0f)
             drawCircle(
-                color = Color.White.copy(alpha = alpha),
+                color = Color.White.copy(alpha = star.baseAlpha),
                 radius = star.sizeDp,
                 center = Offset(x, y)
             )
@@ -591,6 +600,5 @@ private data class StarPoint(
     val xNorm: Float,
     val yNorm: Float,
     val sizeDp: Float,
-    val baseAlpha: Float,
-    val twinkleSpeed: Int
+    val baseAlpha: Float
 )
